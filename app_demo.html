@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>طلبيستا - عرض تجريبي</title>
+<style>
+:root{--g:#0b7a55;--ink:#14201c;--paper:#f3f6f4}@media(prefers-color-scheme:dark){:root{--ink:#e9f0ed;--paper:#0f1613}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:14px;padding:24px;background:var(--paper);color:var(--ink);font:18px "Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;text-align:center}
+h1{color:var(--g);font-size:40px;margin:0}p{margin:0 0 8px;opacity:.75}.note{font-size:13px;opacity:.6}
+button{padding:24px 10px;border-radius:18px;border:0;background:var(--g);color:#fff;font:700 22px inherit;font-family:inherit}button.s{background:none;border:2px solid var(--g);color:var(--g)}
+#sp{position:fixed;inset:0;background:var(--g);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;transition:opacity .5s;z-index:9}#sp svg{width:96px;height:96px}#sp b{font-size:38px}
+</style></head><body>
+<div id="sp"><svg viewBox="0 0 100 100"><circle cx="50" cy="42" r="22" fill="#fff"/><polygon points="29,50 71,50 50,86" fill="#fff"/><circle cx="50" cy="42" r="10" fill="#0b7a55"/></svg><b>طلبيستا</b><span>Talbista</span></div>
+<h1>طلبيستا</h1><p>اطلب سائق الآن</p>
+<button id="c">واجهة الزبون</button><button class="s" id="s">واجهة المتجر</button><button class="s" id="d">واجهة السائق</button><button class="s" id="a">لوحة الإدارة</button>
+<p class="note">نسخة تجريبية ببيانات وهمية ولا تتصل بأي خادم. الدخول يقبل أي كلمة مرور.</p>
+<script>
+setTimeout(()=>{const s=document.getElementById('sp');s.style.opacity=0;setTimeout(()=>s.remove(),500)},1600);
+const go=(k,t,u)=>document.getElementById(k).onclick=()=>{['t','dr','at','role'].forEach(x=>localStorage.removeItem(x));localStorage.setItem(k==='c'||k==='s'?'t':k==='d'?'dr':'at',t);if(k==='s')localStorage.setItem('role','STORE');location.href=u};
+go('c','demo-customer','customer.html');go('s','demo-store','customer.html');go('d','demo-driver','driver.html');go('a','demo-admin','admin.html');
+</script></body></html>

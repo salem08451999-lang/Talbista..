@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>طلبيستا</title>
+<script>
+if (!new URLSearchParams(location.search).has('choose')) {
+  if (localStorage.getItem('dr')) location.replace('driver.html');
+  else if (localStorage.getItem('t')) location.replace('customer.html');
+}
+</script>
+<style>
+:root{--g:#0b7a55;--ink:#14201c;--paper:#f3f6f4}@media(prefers-color-scheme:dark){:root{--ink:#e9f0ed;--paper:#0f1613}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:16px;padding:24px;background:var(--paper);color:var(--ink);font:18px "Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;text-align:center}
+h1{color:var(--g);font-size:40px;margin:0}p{margin:0 0 12px;opacity:.7}
+a{display:block;padding:26px 10px;border-radius:18px;background:var(--g);color:#fff;text-decoration:none;font-size:24px;font-weight:700}a.s{background:none;border:2px solid var(--g);color:var(--g)}
+</style></head><body>
+<h1>طلبيستا</h1><p>اطلب سائق الآن</p>
+<a href="customer.html">زبون أو متجر</a><a class="s" href="driver.html">أنا سائق</a>
+</body></html>

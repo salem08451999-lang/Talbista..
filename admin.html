@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>طلبيستا - الإدارة</title>
+<style>
+:root{--ink:#14201c;--paper:#f3f6f4;--card:#fff;--mut:#62736c;--g:#0b7a55;--amb:#f2a900;--red:#c0392b;--ln:#d9e2de}
+@media(prefers-color-scheme:dark){:root{--ink:#e9f0ed;--paper:#0f1613;--card:#18221e;--mut:#93a49d;--ln:#2a3833}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 "Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif}
+header{padding:12px 16px;display:flex;justify-content:space-between;align-items:center}header b{font-size:20px;color:var(--g)}
+nav{display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px}nav button{white-space:nowrap}
+main{padding:0 16px 40px;max-width:900px;margin:auto}.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px;margin:10px 0}
+button,input,select{font:inherit;color:inherit}input,select{padding:8px;border:1px solid var(--ln);border-radius:8px;background:var(--card);margin:2px 0 8px;width:100%}
+button{padding:8px 12px;border-radius:8px;border:1px solid var(--g);background:none;color:var(--g);font-weight:600;cursor:pointer}
+button.p,nav button.on{background:var(--g);color:#fff}button.d{border-color:var(--red);color:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.grid .card{margin:0}.grid b{font-size:24px;display:block}
+.row{display:flex;gap:6px;flex-wrap:wrap}.row>*{width:auto}.chip{padding:1px 9px;border-radius:99px;background:var(--ln);font-size:13px}
+.err{color:var(--red);min-height:22px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px;border-bottom:1px solid var(--ln);text-align:right}.sc{overflow-x:auto}
+</style></head><body>
+<header><b>طلبيستا - لوحة الإدارة</b><button id="out" hidden>خروج</button></header>
+<nav id="nav" hidden></nav><input type="file" id="pf" accept="image/*" hidden><main id="app"></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ERR={'bad credentials':'بيانات الدخول غير صحيحة','phone exists':'الرقم مسجل مسبقًا','weak password':'كلمة المرور 8 أحرف على الأقل','too many attempts':'محاولات كثيرة، حاول بعد 15 دقيقة'};
+const ST={NEW:'جديد',SEARCHING_DRIVER:'بحث عن سائق',DRIVER_ASSIGNED:'تم التعيين',DRIVER_ON_THE_WAY:'في الطريق',DRIVER_ARRIVED:'وصل',ORDER_PICKED_UP:'تم الاستلام',ON_THE_WAY_TO_CUSTOMER:'في الطريق للعميل',DELIVERED:'مكتمل',CANCELLED:'ملغى'};
+const TABS={stats:'الإحصائيات',drivers:'السائقون',orders:'الطلبات',fin:'المالية',settings:'الإعدادات',cust:'العملاء',audit:'سجل العمليات',viol:'المخالفات',reports:'البلاغات'};
+const SL={commission:'عمولة الشركة %',normal_base:'قيمة الطلب العادي (د.ل)',urgent_base:'قيمة الطلب المستعجل (د.ل)',driver_limit:'حد عهدة السائق (د.ل)',offer_timeout:'مدة انتظار رد السائق (ثانية)',auto_dispatch:'التوزيع التلقائي (1 تشغيل / 0 إيقاف)',violation_fine:'غرامة المخالفة (د.ل)',violation_block_hours:'مدة الحجب بعد المخالفة (ساعة)',max_active_orders:'أقصى عدد طلبات نشطة للسائق',location_max_age:'أقصى عمر لموقع السائق (ثانية)',store_fee_normal:'أجرة توصيل المتجر - عادي (د.ل)',store_fee_urgent:'أجرة توصيل المتجر - مستعجل (د.ل)'};
+let tok=localStorage.getItem('at'),cur='stats',DS=[],OS=[],SV=[];
+async function api(m,p,b){try{const r=await fetch('/api'+p,{method:m,headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:m==='GET'?undefined:JSON.stringify(b||{})});const j=await r.json();
+ if(r.status===401&&p!=='/login'){logout();throw new Error('انتهت الجلسة')}if(!r.ok)throw new Error(ERR[j.error]||j.error);return j}
+ catch(e){if(e instanceof TypeError)throw new Error('تعذر الاتصال بالخادم');throw e}}
+const msg=t=>{const e=$('.err');if(e)e.textContent=t||''};
+const go=async f=>{try{await f()}catch(e){msg(e.message)}};
+function logout(){tok=null;localStorage.removeItem('at');login()}$('#out').onclick=logout;
+function login(){$('#nav').hidden=$('#out').hidden=true;$('#app').innerHTML=`<div class="card"><h3>دخول المدير</h3><input id="ph" type="tel" placeholder="رقم الهاتف"><input id="pw" type="password" placeholder="كلمة المرور"><div class="err"></div><button class="p" id="go">دخول</button></div>`;
+ $('#go').onclick=()=>go(async()=>{const r=await api('POST','/login',{phone:$('#ph').value.trim(),password:$('#pw').value});if(r.role!=='ADMIN')throw new Error('للمدير فقط');tok=r.token;localStorage.setItem('at',tok);start()})}
+function start(){$('#out').hidden=$('#nav').hidden=false;$('#nav').innerHTML=Object.entries(TABS).map(([k,v])=>`<button data-t="${k}" class="${k===cur?'on':''}">${v}</button>`).join('');
+ document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{cur=b.dataset.t;start()});go(()=>V[cur]())}
+const dn=id=>(DS.find(d=>d.id==id)||{}).name||('#'+id),set=h=>$('#app').innerHTML=h+'<div class="err"></div>';
+const V={
+async stats(){const s=await api('GET','/admin/stats'),L={customers:'العملاء',drivers:'السائقون',available:'المتاحون',unavail:'غير المتاحين',active_orders:'طلبات نشطة',normal:'عادية',urgent:'مستعجلة',delivered:'مكتملة',cancelled:'ملغاة',commissions_total:'إجمالي العمولات',outstanding_total:'إجمالي العهد',at_limit:'وصلوا للحد المالي',blocked_drivers:'محجوبون بمخالفة',fines_total:'إجمالي الغرامات',handover_requests:'طلبات التسوية'};s.unavail=s.drivers-s.available;
+ set(`<div class="grid">${Object.entries(L).map(([k,v])=>`<div class="card"><b>${esc(s[k])}</b>${v}</div>`).join('')}</div>`)},
+async drivers(){DS=await api('GET','/admin/drivers');
+ set(`<div class="card"><b>إضافة سائق</b><div class="row">${[['name','الاسم الكامل'],['phone','الهاتف'],['password','كلمة المرور'],['car','نوع السيارة'],['model','الموديل'],['year','السنة'],['color','اللون'],['plate','رقم اللوحة']].map(([k,p])=>`<input id="n_${k}" placeholder="${p}" ${k=='password'?'type=password':''}>`).join('')}</div><button class="p" data-a="add">إضافة</button></div>
+ ${DS.map(d=>`<div class="card">${d.photo&&d.photo.startsWith('data:image/')?`<img src="${d.photo}" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;float:inline-start;margin-inline-end:10px">`:''}<b>${esc(d.name)}</b> <span class="chip">${d.active?'فعال':'معطل'}</span> <span class="chip">${d.available?'متاح':'غير متاح'}</span>${d.blocked_until>Date.now()/1000?'<span class="chip" style="background:var(--red);color:#fff">محجوب بمخالفة</span>':''}<br>${esc(d.phone)} | ${esc(d.car)} ${esc(d.model)} ${esc(d.year)} ${esc(d.color)} | ${esc(d.plate)}<br>العهدة: ${d.outstanding} | آخر موقع: ${d.loc_at?('قبل '+Math.round((Date.now()/1000-d.loc_at)/60)+' د'):'-'} | التقييم: ${d.rating_n?(d.rating_sum/d.rating_n).toFixed(1):'-'}
+ <div class="row"><button class="${d.active?'d':''}" data-a="tg" data-id="${d.id}">${d.active?'تعطيل':'إعادة تفعيل'}</button><button data-a="ed" data-id="${d.id}">تعديل السيارة</button><button data-a="pw" data-id="${d.id}">كلمة المرور</button><button data-a="ph" data-id="${d.id}">صورة السائق</button><button class="d" data-a="vi" data-id="${d.id}">تسجيل مخالفة</button><button data-a="hi" data-id="${d.id}">الطلبات والسجل المالي</button></div></div>`).join('')}<div id="det"></div>`)},
+async orders(){[OS,DS,SV]=await Promise.all([api('GET','/admin/orders'),api('GET','/admin/drivers'),api('GET','/admin/services')]);
+ set(`<div class="row"><input id="q" placeholder="بحث (رقم، عنوان، تفاصيل)"><select id="f"><option value="">كل الحالات</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div><div id="ol"></div>`);
+ const draw=()=>{const q=$('#q').value.trim(),f=$('#f').value;$('#ol').innerHTML=OS.filter(o=>(!f||o.status===f)&&(!q||[o.id,o.pickup,o.dropoff,o.details].join(' ').includes(q))).map(o=>{const open=!['DELIVERED','CANCELLED'].includes(o.status),mv=!['ORDER_PICKED_UP','ON_THE_WAY_TO_CUSTOMER'].includes(o.status);
+  return `<div class="card"><b>#${o.id}</b> <span class="chip">${ST[o.status]}</span> ${o.urgent?'<span class="chip" style="background:var(--amb);color:#000">مستعجل</span>':''}<br>${o.kind==='STORE'?'متجر':esc((SV.find(s=>s.id==o.service_id)||{}).name)} | ${esc(o.pickup)} ← ${esc(o.dropoff)}<br>${esc(o.details)}<br>السائق: ${o.driver_id?esc(dn(o.driver_id)):'-'}${o.agreed_price!=null?' | السعر المتفق: '+o.agreed_price:''}
+  ${open?`<div class="row">${mv?`<select id="s${o.id}">${DS.filter(d=>d.active).map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}</select><button data-a="as" data-id="${o.id}">${o.driver_id?'إعادة تعيين':'تعيين'}</button>`:''}<button class="d" data-a="oc" data-id="${o.id}">إلغاء الطلب</button></div>`:''}</div>`}).join('')||'<p>لا توجد طلبات.</p>'};
+ $('#q').oninput=$('#f').onchange=draw;draw()},
+async fin(){const[hs,lg]=await Promise.all([api('GET','/admin/handovers'),api('GET','/admin/drivers').then(d=>(DS=d,api('GET','/admin/ledger')))]);
+ const KD={COMMISSION:'عمولة',HANDOVER:'تسوية',FINE:'غرامة مخالفة',FINE_REVERSAL:'إلغاء غرامة'};
+ set(`<h3>طلبات التسوية</h3>${hs.filter(h=>h.status==='REQUESTED').map(h=>`<div class="card">${esc(dn(h.driver_id))} - العهدة الحالية: ${(DS.find(d=>d.id==h.driver_id)||{}).outstanding} د.ل <button class="p" data-a="hc" data-id="${h.id}">تأكيد استلام العهدة</button></div>`).join('')||'<p>لا توجد طلبات معلقة.</p>'}
+ <h3>عهد السائقين</h3>${DS.map(d=>`<div>${esc(d.name)}: ${d.outstanding}</div>`).join('')}<h3>السجل المالي</h3><div class="sc"><table><tr><th>التاريخ</th><th>السائق</th><th>الطلب</th><th>النوع</th><th>الأساس</th><th>%</th><th>المبلغ</th><th>الرصيد</th><th>المدير</th></tr>
+ ${lg.slice(0,200).map(l=>`<tr><td>${new Date(l.at*1000).toLocaleString('ar-LY')}</td><td>${esc(dn(l.driver_id))}</td><td>${l.order_id??'-'}</td><td>${KD[l.kind]||l.kind}${l.kind==='COMMISSION'?(l.urgent?' مستعجل':' عادي'):''}</td><td>${l.base??'-'}</td><td>${l.pct??'-'}</td><td>${l.amount}</td><td>${l.balance_after}</td><td>${l.admin_id??'-'}</td></tr>`).join('')}</table></div>`)},
+async settings(){const[st,sv]=await Promise.all([api('GET','/admin/settings'),api('GET','/admin/services')]);
+ set(`<div class="card"><b>الإعدادات</b>${Object.entries(SL).map(([k,v])=>`<label>${v}<input data-k="${k}" type="number" min="0" value="${st[k]}"></label>`).join('')}<button class="p" data-a="ss">حفظ الإعدادات</button></div>
+ <div class="card"><b>الخدمات</b>${sv.map(s=>`<div class="row"><span>${esc(s.name)} <span class="chip">${s.active?'فعالة':'معطلة'}</span></span><button data-a="sr" data-id="${s.id}" data-n="${esc(s.name)}">تعديل</button><button data-a="st" data-id="${s.id}" data-v="${s.active?0:1}">${s.active?'تعطيل':'تفعيل'}</button></div>`).join('')}<input id="ns" placeholder="خدمة جديدة"><button class="p" data-a="sa">إضافة خدمة</button></div>`)},
+async cust(){const c=await api('GET','/admin/customers');set(`<p>عدد العملاء: ${c.length}</p>${c.map(x=>`<div class="card">${esc(x.name)} - ${esc(x.phone)} <span class="chip">${x.active?'فعال':'معطل'}</span> <button class="${x.active?'d':''}" data-a="ct" data-id="${x.id}" data-v="${x.active?0:1}">${x.active?'تعطيل':'تفعيل'}</button></div>`).join('')}`)},
+async viol(){const[vs,ds]=await Promise.all([api('GET','/admin/violations'),api('GET','/admin/drivers')]);DS=ds;const t=Date.now()/1000,hr=x=>Math.ceil((x-t)/3600)+' ساعة';
+ set(`<h3>ملخص السائقين</h3><div class="sc"><table><tr><th>السائق</th><th>عدد المخالفات</th><th>إجمالي الغرامات</th><th>نشطة</th><th>الحجب المتبقي</th></tr>${ds.map(d=>{const m=vs.filter(v=>v.driver_id==d.id),a=m.filter(v=>v.status==='ACTIVE');return `<tr><td>${esc(d.name)}</td><td>${m.length}</td><td>${a.reduce((s,v)=>s+v.fine,0)}</td><td>${a.filter(v=>v.blocked_until>t).length}</td><td>${d.blocked_until>t?hr(d.blocked_until):'-'}</td></tr>`}).join('')}</table></div>
+ <h3>سجل المخالفات</h3><div class="sc"><table><tr><th>التاريخ</th><th>السائق</th><th>الطلب</th><th>السبب</th><th>الغرامة</th><th>الحالة</th><th>حجب متبقٍ</th><th></th></tr>${vs.map(v=>`<tr><td>${new Date(v.created*1000).toLocaleString('ar-LY')}</td><td>${esc(v.driver_name)}</td><td>${v.order_id??'-'}</td><td>${esc(v.reason)}</td><td>${v.fine}</td><td>${v.status==='ACTIVE'?'معتمدة':'ملغاة'}</td><td>${v.status==='ACTIVE'&&v.blocked_until>t?hr(v.blocked_until):'-'}</td><td>${v.status==='ACTIVE'?`<button class="d" data-a="vc" data-id="${v.id}">إلغاء</button>`:esc(v.cancel_note||'')}</td></tr>`).join('')}</table></div>`)},
+async reports(){const r=await api('GET','/admin/reports');set(`<div class="sc"><table><tr><th>التاريخ</th><th>المرسل</th><th>الطلب</th><th>البلاغ</th><th></th></tr>${r.map(x=>`<tr><td>${new Date(x.created*1000).toLocaleString('ar-LY')}</td><td>${esc(x.user_name)} ${esc(x.user_phone)}</td><td>${x.order_id??'-'}</td><td>${esc(x.message)}</td><td>${x.status==='OPEN'?`<button data-a="rr" data-id="${x.id}">تم الحل</button>`:'تم'}</td></tr>`).join('')}</table></div>`)},
+async audit(){const a=await api('GET','/admin/audit');set(`<div class="sc"><table><tr><th>التاريخ</th><th>المدير</th><th>العملية</th><th>التفاصيل</th></tr>${a.map(x=>`<tr><td>${new Date(x.at*1000).toLocaleString('ar-LY')}</td><td>${x.actor}</td><td>${esc(x.action)}</td><td>${esc(x.detail)}</td></tr>`).join('')}</table></div>`)}};
+let PID=null;
+$('#pf').onchange=e=>go(async()=>{const f=e.target.files[0];e.target.value='';if(!f)return;const im=await createImageBitmap(f),s=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.round(im.width*s);cv.height=Math.round(im.height*s);cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+ let u;for(const q of[.8,.6,.4]){u=cv.toDataURL('image/jpeg',q);if(u.length<85000)break}await api('POST',`/admin/drivers/${PID}/photo`,{image:u});await V.drivers();msg('تم رفع الصورة')});
+const A={
+rr:(id)=>go(async()=>{await api('POST',`/admin/reports/${id}/resolve`);V.reports()}),
+ph:(id)=>{PID=id;$('#pf').click()},
+vi:(id)=>go(async()=>{const r=prompt('سبب المخالفة (بعد مراجعة الإدارة واعتمادها)');if(!r)return;const o=prompt('رقم الطلب المرتبط (اختياري)');if(!confirm('اعتماد المخالفة؟ سيُحجب السائق وتُضاف الغرامة إلى عهدته.'))return;await api('POST',`/admin/drivers/${id}/violations`,{reason:r,order_id:o?+o:null});await V.drivers();msg('تم تسجيل المخالفة')}),
+vc:(id)=>go(async()=>{const n=prompt('سبب إلغاء المخالفة');if(!n)return;await api('POST',`/admin/violations/${id}/cancel`,{note:n});V.viol()}),
+ct:(id,e)=>go(async()=>{await api('PATCH','/admin/customers/'+id,{active:!!+e.dataset.v});V.cust()}),
+pw:(id)=>go(async()=>{const p=prompt('كلمة المرور الجديدة (8 أحرف على الأقل)');if(p){await api('POST',`/admin/drivers/${id}/password`,{password:p});msg('تم تغيير كلمة المرور')}}),
+add:()=>go(async()=>{const b={};['name','phone','password','car','model','year','color','plate'].forEach(k=>b[k]=$('#n_'+k).value.trim());b.year=+b.year;await api('POST','/admin/drivers',b);V.drivers()}),
+tg:(id)=>go(async()=>{const d=DS.find(x=>x.id==id);await api('PATCH','/admin/drivers/'+id,{active:!d.active});V.drivers()}),
+ed:(id)=>go(async()=>{const d=DS.find(x=>x.id==id),b={};for(const k of['car','model','year','color','plate']){const v=prompt(k,d[k]);if(v===null)return;b[k]=k==='year'?+v:v}await api('PATCH','/admin/drivers/'+id,b);V.drivers()}),
+hi:(id)=>go(async()=>{const[o,l]=await Promise.all([api('GET','/admin/orders'),api('GET','/admin/ledger')]);
+ $('#det').innerHTML=`<div class="card"><b>سجل ${esc(dn(id))}</b><p>الطلبات: ${o.filter(x=>x.driver_id==id).map(x=>`#${x.id} (${ST[x.status]})`).join('، ')||'-'}</p><p>المالي: ${l.filter(x=>x.driver_id==id).map(x=>`${x.kind==='COMMISSION'?'+':''}${x.amount}`).join('، ')||'-'}</p></div>`}),
+as:(id)=>go(async()=>{await api('POST',`/admin/orders/${id}/assign`,{driver_id:+$('#s'+id).value});V.orders()}),
+oc:(id)=>confirm('إلغاء الطلب؟')&&go(async()=>{await api('POST',`/admin/orders/${id}/cancel`);V.orders()}),
+hc:(id)=>confirm('هل استلمت المبلغ نقدًا؟')&&go(async()=>{await api('POST',`/admin/handovers/${id}/confirm`);V.fin()}),
+ss:()=>go(async()=>{const b={};document.querySelectorAll('[data-k]').forEach(i=>b[i.dataset.k]=+i.value);await api('PUT','/admin/settings',b);await V.settings();msg('تم الحفظ')}),
+sa:()=>go(async()=>{await api('POST','/admin/services',{name:$('#ns').value.trim()});V.settings()}),
+sr:(id,e)=>go(async()=>{const n=prompt('الاسم',e.dataset.n);if(n){await api('PATCH','/admin/services/'+id,{name:n});V.settings()}}),
+st:(id,e)=>go(async()=>{await api('PATCH','/admin/services/'+id,{active:+e.dataset.v});V.settings()})};
+$('#app').onclick=e=>{const b=e.target.closest('[data-a]');if(b)A[b.dataset.a](b.dataset.id,b)};
+tok?start():login();
+</script></body></html>

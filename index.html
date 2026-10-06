@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>طلبيستا</title>
+<style>
+:root{--ink:#14201c;--paper:#f3f6f4;--card:#fff;--mut:#62736c;--g:#0b7a55;--amb:#f2a900;--red:#c0392b;--ln:#d9e2de}
+@media(prefers-color-scheme:dark){:root{--ink:#e9f0ed;--paper:#0f1613;--card:#18221e;--mut:#93a49d;--ln:#2a3833}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 "Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{padding:calc(14px + env(safe-area-inset-top)) 18px 10px;display:flex;justify-content:space-between;align-items:center}
+header b{font-size:22px;color:var(--g)}main{padding:0 18px 40px;max-width:520px;margin:auto}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px;margin:12px 0}
+.hero{width:100%;padding:26px 10px;font-size:26px;font-weight:700;background:var(--g);color:#fff;border:0;border-radius:18px;margin:14px 0}
+button,input,textarea,select{font:inherit;color:inherit}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--ln);border-radius:10px;background:var(--card);margin:4px 0 12px}
+.btn{padding:12px 16px;border-radius:10px;border:1px solid var(--g);background:none;color:var(--g);font-weight:600}
+.btn.p{background:var(--g);color:#fff}.btn.d{border-color:var(--red);color:var(--red)}.row{display:flex;gap:8px}.row>*{flex:1}
+.chip{display:inline-block;padding:2px 10px;border-radius:99px;background:var(--ln);font-size:14px}.u{background:var(--amb);color:#000}
+.tl{list-style:none;padding:0;margin:8px 0}.tl li{padding:2px 22px 2px 0;position:relative;color:var(--mut)}
+.tl li:before{content:"";position:absolute;right:4px;top:11px;width:9px;height:9px;border-radius:50%;background:var(--ln)}
+.tl li.on{color:var(--ink);font-weight:600}.tl li.on:before{background:var(--g)}
+.seg{display:flex;gap:8px;margin-bottom:12px}.seg label{flex:1;border:2px solid var(--ln);border-radius:12px;padding:10px;text-align:center;cursor:pointer}
+.seg input{display:none}.seg label:has(input:checked){border-color:var(--g)}.seg label.ur:has(input:checked){border-color:var(--amb);background:#f2a90022}
+.note{font-size:14px;color:var(--mut)}.err{color:var(--red);min-height:24px}.stars button{font-size:30px;background:none;border:0;color:var(--amb)}
+#off{background:var(--red);color:#fff;text-align:center;padding:6px}a{color:var(--g)}:focus-visible{outline:3px solid var(--amb)}
+</style><script src="map.js"></script></head><body>
+<div id="off" hidden>لا يوجد اتصال بالإنترنت. سنعيد المحاولة تلقائيًا.</div>
+<header><b>طلبيستا</b><button class="btn" id="out" hidden>خروج</button></header>
+<main id="app"></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ST={NEW:'تم إنشاء الطلب',SEARCHING_DRIVER:'جاري البحث عن سائق',DRIVER_ASSIGNED:'تم تعيين السائق',DRIVER_ON_THE_WAY:'السائق في الطريق إلى الاستلام',DRIVER_ARRIVED:'السائق وصل',ORDER_PICKED_UP:'تم استلام الطلب',ON_THE_WAY_TO_CUSTOMER:'الطلب في الطريق إليك',DELIVERED:'تم التسليم',CANCELLED:'تم إلغاء الطلب'};
+const FLOW=['SEARCHING_DRIVER','DRIVER_ASSIGNED','DRIVER_ON_THE_WAY','DRIVER_ARRIVED','ORDER_PICKED_UP','ON_THE_WAY_TO_CUSTOMER','DELIVERED'];
+const ERR={'bad credentials':'رقم الهاتف أو كلمة المرور غير صحيحة','phone exists':'هذا الرقم مسجل مسبقًا','invalid phone/password':'تأكد من رقم الهاتف وأن كلمة المرور 8 أحرف على الأقل','cannot cancel now':'لا يمكن إلغاء الطلب بعد استلامه','already rated':'تم تقييم هذا الطلب مسبقًا','too many attempts':'محاولات كثيرة، حاول بعد 15 دقيقة','invalid password':'كلمة المرور الحالية غير صحيحة أو الجديدة أقل من 8 أحرف','invalid data':'تأكد من البيانات المدخلة (كل حقل من حرفين على الأقل)','bad coordinates':'إحداثيات الموقع غير صحيحة'};
+let PK,tok=localStorage.getItem('t'),timer;
+async function api(m,p,b){try{const r=await fetch((window.TB_API||'')+'/api'+p,{method:m,headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:m==='GET'?undefined:JSON.stringify(b||{})});const j=await r.json();$('#off').hidden=true;
+ if(r.status===401&&p!=='/login'){logout();throw new Error('انتهت الجلسة، سجل الدخول مجددًا')}if(!r.ok)throw new Error(ERR[j.error]||j.error||'حدث خطأ');return j}
+ catch(e){if(e instanceof TypeError){$('#off').hidden=false;throw new Error('تعذر الاتصال بالخادم')}throw e}}
+function logout(){window.tbNative&&tbNative.unregister(tok);tok=null;localStorage.removeItem('t');localStorage.removeItem('role');Object.keys(localStorage).filter(k=>/^c_/.test(k)).forEach(k=>localStorage.removeItem(k));clearInterval(timer);auth()}
+$('#out').onclick=logout;
+const show=h=>{clearInterval(timer);$('#app').innerHTML=h;$('#out').hidden=!tok};
+const go=async(f,el)=>{try{await f()}catch(e){(el||$('.err')).textContent=e.message}};
+function auth(reg){show(`<div class="card"><h2>${reg?'تسجيل زبون':'تسجيل الدخول'}</h2>${reg?'<label>الاسم<input id="n" autocomplete="name"></label>':''}
+<label>رقم الهاتف<input id="ph" type="tel" inputmode="numeric" autocomplete="tel"></label><label>كلمة المرور<input id="pw" type="password" autocomplete="${reg?'new-password':'current-password'}"></label>
+<div class="err"></div><button class="btn p" id="go" style="width:100%">${reg?'إنشاء الحساب':'دخول'}</button><p><a href="#" id="sw">${reg?'لدي حساب':'ليس لدي حساب'}</a></p></div>`);
+ $('#sw').onclick=e=>{e.preventDefault();reg?auth():regChoose()};
+ $('#go').onclick=()=>go(async()=>{const phone=$('#ph').value.trim(),password=$('#pw').value;
+  if(reg)await api('POST','/register',{name:$('#n').value.trim(),phone,password});
+  const r=await api('POST','/login',{phone,password});if(!['CUSTOMER','STORE'].includes(r.role))throw new Error('هذا الحساب غير مخصص لهذا التطبيق');tok=r.token;localStorage.setItem('t',tok);localStorage.setItem('role',r.role);r.role==='STORE'?storeHome():home()})}
+async function home(){let os,nt;try{[os,nt]=await Promise.all([api('GET','/orders'),api('GET','/notifications').catch(()=>[])]);localStorage.setItem('c_orders',JSON.stringify(os))}catch(e){if(!tok)return;const cc=localStorage.getItem('c_orders');if(cc){os=JSON.parse(cc);nt=[]}else{if(!$('#new')){show(`<div class="card"><p class="err">${esc(e.message)}</p><button class="btn p" id="rt">إعادة المحاولة</button></div>`);$('#rt').onclick=home}timer=setTimeout(home,6000);return}}const un=nt.filter(n=>!n.read).length;
+ const act=os.find(o=>!['DELIVERED','CANCELLED'].includes(o.status));
+ show(`<button class="hero" id="new">اطلب سائق الآن</button><div class="row"><button class="btn" id="nt">الإشعارات${un?` (${un})`:''}</button><button class="btn" id="pf">حسابي</button></div>${act?`<div class="card" data-id="${act.id}" style="cursor:pointer"><b>طلب نشط #${act.id}</b><br>${ST[act.status]}</div>`:''}
+ <h3>طلباتي</h3>${os.length?os.map(o=>`<div class="card" data-id="${o.id}" style="cursor:pointer">#${o.id} ${o.urgent?'<span class="chip u">مستعجل ⚡</span>':''}<br>${esc(o.pickup)} ← ${esc(o.dropoff)}<br><span class="chip">${ST[o.status]}</span></div>`).join(''):'<p class="note">لا توجد طلبات بعد. اضغط «اطلب سائق الآن» لتبدأ.</p>'}`);
+ $('#new').onclick=newOrder;$('#nt').onclick=notifs;$('#pf').onclick=profile;timer=setTimeout(home,8000);document.querySelectorAll('[data-id]').forEach(c=>c.onclick=()=>detail(c.dataset.id))}
+async function newOrder(){const sv=await api('GET','/services');
+ show(`<div class="card"><h2>اطلب سائق</h2><label>نوع المهمة<select id="sv">${sv.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>
+ <label>مكان الاستلام<input id="pk" placeholder="العنوان أو وصف المكان"></label><label>مكان التسليم<input id="dr" placeholder="العنوان أو وصف المكان"></label>
+ <div id="mapbox"></div><label>تفاصيل المهمة<textarea id="dt" rows="3"></textarea></label>
+ <div class="seg"><label><input type="radio" name="u" value="0" checked>عادي</label><label class="ur"><input type="radio" name="u" value="1">مستعجل ⚡</label></div>
+ <p class="note">سعر تنفيذ المهمة يتم الاتفاق عليه بينك وبين السائق قبل تأكيد الطلب.</p><div class="err"></div>
+ <div class="row"><button class="btn" id="bk">رجوع</button><button class="btn p" id="ok">تأكيد الطلب</button></div></div>`);
+ PK=TBMap.picker($('#mapbox'),{});$('#bk').onclick=home;$('#ok').onclick=()=>go(async()=>{const b={service_id:+$('#sv').value,pickup:$('#pk').value.trim(),dropoff:$('#dr').value.trim(),details:$('#dt').value.trim(),urgent:$('input[name=u]:checked').value==='1',...PK.get()};if(!b.pickup&&b.pickup_lat!=null)b.pickup='الموقع المحدد على الخريطة';if(!b.dropoff&&b.dropoff_lat!=null)b.dropoff='الموقع المحدد على الخريطة';
+  if(!b.pickup||!b.dropoff||!b.details)throw new Error('أكمل مكان الاستلام والتسليم وتفاصيل المهمة');const r=await api('POST','/orders',b);detail(r.id)})}
+async function detail(id){let o;try{o=await api('GET','/orders/'+id);localStorage.setItem('c_o'+id,JSON.stringify(o))}catch(e){const cc=localStorage.getItem('c_o'+id);if(!cc)throw e;o=JSON.parse(cc)}const d=o.driver,done=o.status==='DELIVERED',canc=['NEW','SEARCHING_DRIVER','DRIVER_ASSIGNED','DRIVER_ON_THE_WAY','DRIVER_ARRIVED'].includes(o.status);
+ const i=FLOW.indexOf(o.status);
+ show(`<div class="card"><b>طلب #${o.id}</b> ${o.urgent?'<span class="chip u">مستعجل ⚡</span>':''}<p>${esc(o.pickup)} ← ${esc(o.dropoff)}<br><span class="note">${esc(o.details)}</span></p>
+ ${o.status==='CANCELLED'?'<p class="err">تم إلغاء الطلب</p>':`<ul class="tl">${FLOW.map((s,k)=>`<li class="${k<=i?'on':''}">${ST[s]}</li>`).join('')}</ul>`}</div>
+ ${d?`<div class="card"><b>بيانات السائق</b>${d.photo&&d.photo.startsWith('data:image/')?`<img src="${d.photo}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;float:inline-start;margin-inline-end:12px">`:''}<p>${esc(d.name)}${d.rating?' ⭐ '+d.rating:''}<br>${esc(d.car)} ${esc(d.model)} ${esc(d.year)} - ${esc(d.color)}<br>اللوحة: ${esc(d.plate)}</p><a class="btn p" style="display:block;text-align:center;text-decoration:none" href="tel:${esc(d.phone)}">اتصال بالسائق ${esc(d.phone)}</a>
+ <p class="note">اتفق مع السائق على سعر المهمة قبل التنفيذ.</p></div>`:''}
+ ${done?`<div class="card"><b>قيّم السائق</b><div class="stars">${[1,2,3,4,5].map(n=>`<button data-s="${n}" aria-label="${n}">☆</button>`).join('')}</div>${o.confirmed?'':'<button class="btn p" id="cf" style="width:100%">تأكيد استلام الطلب</button>'}</div>`:''}
+ <div class="err"></div><div class="row">${canc?'<button class="btn d" id="cn">إلغاء الطلب</button>':''}<button class="btn" id="bk">رجوع</button></div>`);
+ $('#bk').onclick=home;if($('#cn'))$('#cn').onclick=()=>confirm('هل تريد إلغاء الطلب؟')&&go(async()=>{await api('POST',`/orders/${id}/cancel`);detail(id)});
+ if($('#cf'))$('#cf').onclick=()=>go(async()=>{await api('POST',`/orders/${id}/confirm`);detail(id)});
+ document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>go(async()=>{await api('POST',`/orders/${id}/rate`,{stars:+b.dataset.s});document.querySelectorAll('[data-s]').forEach(x=>x.textContent=+x.dataset.s<=+b.dataset.s?'★':'☆');$('.err').textContent=''}));
+ if(!done&&o.status!=='CANCELLED')poll(id)}
+function poll(id){clearTimeout(timer);timer=setTimeout(()=>detail(id).catch(()=>poll(id)),5000)}
+function regChoose(){const b='style="width:100%;padding:20px;margin:6px 0;font-size:20px"';show(`<div class="card"><h2>إنشاء حساب</h2><p class="note">اختر نوع الحساب</p><button class="btn p" id="rc" ${b}>زبون</button><button class="btn p" id="rs" ${b}>متجر</button><button class="btn" id="rd" ${b}>سائق</button><p><a href="#" id="bk">لدي حساب</a></p></div>`);
+ $('#rc').onclick=()=>auth(true);$('#rs').onclick=storeReg;$('#rd').onclick=driverInfo;$('#bk').onclick=e=>{e.preventDefault();auth()}}
+function driverInfo(){show(`<div class="card"><h2>حساب سائق</h2><p>حسابات السائقين تُنشأ من إدارة طلبيستا فقط. تواصل مع الإدارة للحصول على حسابك، ثم سجّل الدخول من تطبيق السائق.</p><a class="btn p" style="display:block;text-align:center;text-decoration:none" href="${window.TB_API!==undefined?'driver.html':'/driver'}">فتح تطبيق السائق</a><p><a href="#" id="bk">رجوع</a></p></div>`);$('#bk').onclick=e=>{e.preventDefault();regChoose()}}
+function storeReg(){show(`<div class="card"><h2>تسجيل متجر</h2><label>اسم المتجر<input id="sn" autocomplete="organization"></label><label>اسم المسؤول<input id="mn" autocomplete="name"></label><label>رقم الهاتف<input id="ph" type="tel" inputmode="numeric" autocomplete="tel"></label><label>عنوان المتجر<input id="ad" autocomplete="street-address"></label><label>نوع النشاط<input id="at" list="acts" placeholder="مثال: مطعم، صيدلية، سوبرماركت"><datalist id="acts"><option value="مطعم"><option value="مقهى"><option value="حلويات ومخبوزات"><option value="سوبرماركت"><option value="صيدلية"><option value="ملابس"><option value="أخرى"></datalist></label><label>كلمة المرور<input id="pw" type="password" autocomplete="new-password"></label><div class="err"></div><div class="row"><button class="btn" id="bk">رجوع</button><button class="btn p" id="go">إنشاء الحساب</button></div></div>`);
+ $('#bk').onclick=regChoose;$('#go').onclick=()=>go(async()=>{const b={store_name:$('#sn').value.trim(),manager_name:$('#mn').value.trim(),phone:$('#ph').value.trim(),address:$('#ad').value.trim(),activity_type:$('#at').value.trim(),password:$('#pw').value};
+  if(Object.values(b).some(v=>!v))throw new Error('أكمل كل الحقول');await api('POST','/register/store',b);const r=await api('POST','/login',{phone:b.phone,password:b.password});tok=r.token;localStorage.setItem('t',tok);localStorage.setItem('role','STORE');storeHome()})}
+const SST={NEW:'جديد',SEARCHING_DRIVER:'جاري البحث عن سائق',DRIVER_ASSIGNED:'تم تعيين سائق',DRIVER_ON_THE_WAY:'السائق في الطريق للاستلام',DRIVER_ARRIVED:'السائق وصل',ORDER_PICKED_UP:'استلم السائق الطلب',ON_THE_WAY_TO_CUSTOMER:'في الطريق',DELIVERED:'تم التسليم',CANCELLED:'ملغي'};
+const retry=f=>f().catch(e=>{show(`<div class="card"><p class="err">${esc(e.message)}</p><button class="btn p" id="rt">إعادة المحاولة</button></div>`);$('#rt').onclick=()=>retry(f)});
+const scards=os=>os.map(o=>`<div class="card" data-id="${o.id}" style="cursor:pointer">#${o.id} ${o.urgent?'<span class="chip u">مستعجل ⚡</span>':''}<br>${esc(o.dropoff)}<br><span class="chip">${SST[o.status]}</span></div>`).join('');
+const bindcards=()=>document.querySelectorAll('[data-id]').forEach(c=>c.onclick=()=>sdetail(c.dataset.id));
+async function storeHome(){const[m,os,nt]=await Promise.all([api('GET','/me'),api('GET','/store/orders'),api('GET','/notifications').catch(()=>[])]),un=nt.filter(n=>!n.read).length,act=os.filter(o=>!['DELIVERED','CANCELLED'].includes(o.status));
+ show(`<div class="card"><b>${esc(m.name)}</b><br><span class="note">${act.length?'لديك '+act.length+' طلب نشط':'لا توجد طلبات نشطة'}</span></div><button class="hero" id="sn">إنشاء طلب توصيل</button>
+ <div class="row"><button class="btn" id="so">طلباتي</button><button class="btn" id="sf">الإشعارات${un?` (${un})`:''}</button></div><div class="row" style="margin-top:8px"><button class="btn" id="sa">حساب المتجر</button><button class="btn" id="sh">المساعدة والدعم</button></div>${act.length?'<h3>الطلبات النشطة</h3>':''}${scards(act.slice(0,3))}`);
+ $('#sn').onclick=()=>retry(storeNew);$('#so').onclick=()=>retry(storeOrders);$('#sf').onclick=notifs;$('#sa').onclick=()=>retry(storeAcct);$('#sh').onclick=()=>retry(support);bindcards();timer=setTimeout(()=>storeHome().catch(()=>{}),8000)}
+let SP;
+async function storeNew(){const[cf,m]=await Promise.all([api('GET','/store/config'),api('GET','/me')]);
+ show(`<div class="card"><h2>إنشاء طلب توصيل</h2><label>اسم الزبون أو رقم هاتفه<input id="ct"></label><label>مكان الاستلام<input id="pk" value="${esc(m.store.address)}"></label><label>مكان التسليم<input id="dr" placeholder="العنوان أو وصف المكان"></label><div id="mapbox"></div>
+ <label>وصف الطلب<textarea id="dt" rows="2"></textarea></label><div class="seg"><label><input type="radio" name="p" value="0" checked>غير خالصة</label><label><input type="radio" name="p" value="1">خالصة</label></div>
+ <label id="vl">قيمة الطلب (د.ل)<input id="vv" type="number" min="0" inputmode="decimal"></label><label>ملاحظات للسائق<input id="nt"></label><p class="note" style="margin:0 0 4px">هل الطلب مستعجل؟</p>
+ <div class="seg"><label><input type="radio" name="u" value="0" checked>لا</label><label class="ur"><input type="radio" name="u" value="1">نعم ⚡</label></div>
+ <div class="card" style="margin:6px 0">أجرة التوصيل: <b id="fee"></b></div><div class="err"></div><div class="row"><button class="btn" id="bk">رجوع</button><button class="btn p" id="ok">تأكيد الطلب</button></div></div>`);
+ SP=TBMap.picker($('#mapbox'),{pickup:cf.lat!=null?[cf.lat,cf.lng]:null,auto:cf.lat==null});
+ const fee=()=>$('#fee').textContent=($('input[name=u]:checked').value==='1'?cf.fee_urgent:cf.fee_normal)+' د.ل';fee();document.querySelectorAll('input[name=u]').forEach(r=>r.onchange=fee);
+ document.querySelectorAll('input[name=p]').forEach(r=>r.onchange=()=>$('#vl').hidden=$('input[name=p]:checked').value==='1');
+ $('#bk').onclick=()=>retry(storeHome);$('#ok').onclick=()=>go(async()=>{const b={contact:$('#ct').value.trim(),pickup:$('#pk').value.trim(),dropoff:$('#dr').value.trim(),details:$('#dt').value.trim(),notes:$('#nt').value.trim(),urgent:$('input[name=u]:checked').value==='1',is_paid:$('input[name=p]:checked').value==='1',...SP.get()};
+  if(!b.is_paid)b.order_value=$('#vv').value;if(!b.dropoff&&b.dropoff_lat!=null)b.dropoff='الموقع المحدد على الخريطة';
+  if(!b.contact||!b.dropoff||!b.details)throw new Error('أكمل اسم الزبون أو هاتفه ومكان التسليم ووصف الطلب');if(!b.is_paid&&b.order_value==='')throw new Error('اكتب قيمة الطلب');
+  const r=await api('POST','/store/orders',b);sdetail(r.id)})}
+async function storeOrders(){const os=await api('GET','/store/orders');show(`<div class="card"><h2>طلباتي</h2>${scards(os)||'<p class="note">لا توجد طلبات بعد.</p>'}<button class="btn" id="bk">رجوع</button></div>`);$('#bk').onclick=()=>retry(storeHome);bindcards();timer=setTimeout(()=>storeOrders().catch(()=>{}),8000)}
+function spoll(id){clearTimeout(timer);timer=setTimeout(()=>sdetail(id).catch(()=>spoll(id)),5000)}
+async function sdetail(id){const o=await api('GET','/orders/'+id),d=o.driver,done=o.status==='DELIVERED',canc=['NEW','SEARCHING_DRIVER','DRIVER_ASSIGNED','DRIVER_ON_THE_WAY','DRIVER_ARRIVED'].includes(o.status),i=FLOW.indexOf(o.status);
+ show(`<div class="card"><b>طلب #${o.id}</b> ${o.urgent?'<span class="chip u">مستعجل ⚡</span>':''}<p>${esc(o.pickup)} ← ${esc(o.dropoff)}<br><span class="note">${esc(o.details)}</span></p><p class="note">الزبون: ${esc(o.contact)}<br>${o.is_paid?'الطلبية خالصة':'قيمة الطلبية: '+o.order_value+' د.ل'} • أجرة التوصيل: ${o.delivery_fee} د.ل${o.notes?'<br>ملاحظات: '+esc(o.notes):''}</p>
+ ${o.status==='CANCELLED'?'<p class="err">ملغي</p>':`<ul class="tl">${FLOW.map((s,k)=>`<li class="${k<=i?'on':''}">${SST[s]}</li>`).join('')}</ul>`}</div>
+ ${d?`<div class="card"><b>بيانات السائق</b>${d.photo&&d.photo.startsWith('data:image/')?`<img src="${d.photo}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;float:inline-start;margin-inline-end:12px">`:''}<p>${esc(d.name)}${d.rating?' ⭐ '+d.rating:''}<br>${esc(d.car)} ${esc(d.model)} ${esc(d.year)} - ${esc(d.color)}<br>اللوحة: ${esc(d.plate)}</p><a class="btn p" style="display:block;text-align:center;text-decoration:none" href="tel:${esc(d.phone)}">اتصال بالسائق ${esc(d.phone)}</a></div>`:''}
+ <div class="err"></div><div class="row">${canc?'<button class="btn d" id="cn">إلغاء الطلب</button>':''}<button class="btn" id="bk">رجوع</button></div>`);
+ $('#bk').onclick=()=>retry(storeOrders);if($('#cn'))$('#cn').onclick=()=>confirm('هل تريد إلغاء الطلب؟')&&go(async()=>{await api('POST',`/store/orders/${id}/cancel`);sdetail(id)});
+ if(!done&&o.status!=='CANCELLED')spoll(id)}
+async function storeAcct(){const m=await api('GET','/me'),s=m.store;
+ show(`<div class="card"><h2>حساب المتجر</h2><p>${esc(m.name)}<br>المسؤول: ${esc(s.manager_name)}<br>الهاتف: ${esc(m.phone)}<br>العنوان: ${esc(s.address)}<br>النشاط: ${esc(s.activity_type)}</p></div>
+ <div class="card"><b>موقع المتجر على الخريطة</b><p class="note">يُستخدم كمكان استلام تلقائي لطلباتك وفي اختيار أقرب سائق.</p><div id="mapbox"></div><button class="btn p" id="sl" style="width:100%">حفظ موقع المتجر</button></div>
+ <div class="card"><b>تغيير كلمة المرور</b><input id="op" type="password" placeholder="الحالية"><input id="np" type="password" placeholder="الجديدة (8 أحرف على الأقل)"><button class="btn p" id="sp" style="width:100%">حفظ كلمة المرور</button></div><div class="err"></div><button class="btn" id="bk" style="width:100%">رجوع</button>`);
+ const P=TBMap.picker($('#mapbox'),{pickup:s.lat!=null?[s.lat,s.lng]:null,auto:false,single:true});$('#bk').onclick=()=>retry(storeHome);
+ $('#sl').onclick=()=>go(async()=>{const g=P.get();if(g.pickup_lat==null)throw new Error('حدّد موقع المتجر على الخريطة أولًا');await api('PATCH','/store/location',{lat:g.pickup_lat,lng:g.pickup_lng});$('.err').style.color='var(--g)';$('.err').textContent='تم حفظ موقع المتجر'});
+ $('#sp').onclick=()=>go(async()=>{await api('PATCH','/me',{old_password:$('#op').value,new_password:$('#np').value});$('.err').style.color='var(--g)';$('.err').textContent='تم تغيير كلمة المرور'})}
+const FAQ=[['كيف أنشئ طلب توصيل؟','اضغط «إنشاء طلب توصيل»، واكتب اسم الزبون أو هاتفه ومكان التسليم ووصف الطلب، وحدّد إن كانت الطلبية خالصة وقيمتها إن لم تكن، ثم اضغط «تأكيد الطلب».'],['كيف تُحسب أجرة التوصيل؟','تظهر لك الأجرة قبل التأكيد حسب نوع الطلب: عادي أو مستعجل.'],['هل أكتب بيانات متجري في كل طلب؟','لا. بيانات المتجر محفوظة في حسابك وكل طلب يرتبط به تلقائيًا.'],['كيف أتابع حالة طلبي؟','من «طلباتي»، وتصلك إشعارات عند تغيّر الحالة.'],['هل يمكنني إلغاء الطلب؟','نعم من صفحة الطلب قبل أن يستلمه السائق.'],['كيف يُختار السائق؟','يُرسل الطلب إلى أقرب سائق متاح، وإذا لم يقبل ينتقل إلى السائق الذي يليه.']];
+async function support(){const sp=await api('GET','/support'),LK='display:block;text-align:center;text-decoration:none;margin:6px 0';
+ show(`<div class="card"><h2>المساعدة والدعم</h2>${sp.phone?`<a class="btn p" style="${LK}" href="tel:${esc(sp.phone)}">📞 اتصل بالدعم الفني</a>`:'<p class="note">رقم الدعم الفني لم يُضبط بعد.</p>'}${sp.whatsapp?`<a class="btn" style="${LK}" href="https://wa.me/${esc(String(sp.whatsapp).replace(/\D/g,''))}" target="_blank" rel="noopener">💬 تواصل مع الدعم عبر واتساب</a>`:''}
+ <button class="btn" id="rp" style="width:100%;margin:6px 0">⚠️ الإبلاغ عن مشكلة</button><button class="btn" id="fq" style="width:100%;margin:6px 0">❓ الأسئلة الشائعة</button><div id="sx"></div><div class="err"></div><button class="btn" id="bk" style="width:100%;margin-top:8px">رجوع</button></div>`);
+ $('#bk').onclick=()=>retry(storeHome);$('#fq').onclick=()=>$('#sx').innerHTML=FAQ.map(q=>`<p><b>${esc(q[0])}</b><br><span class="note">${esc(q[1])}</span></p>`).join('');
+ $('#rp').onclick=()=>{$('#sx').innerHTML='<textarea id="rm" rows="4" placeholder="اشرح المشكلة (رقم الطلب إن وجد)"></textarea><button class="btn p" id="rs" style="width:100%">إرسال البلاغ</button>';$('#rs').onclick=()=>go(async()=>{await api('POST','/support/report',{message:$('#rm').value});$('#sx').innerHTML='<p style="color:var(--g)">تم إرسال البلاغ، سنتواصل معك.</p>'})}}
+async function notifs(){const n=await api('GET','/notifications');api('POST','/notifications/read').catch(()=>{});show(`<div class="card"><h2>الإشعارات</h2>${n.map(x=>`<p>${esc(x.text)}<br><span class="note">${new Date(x.at*1000).toLocaleString('ar-LY')}</span></p>`).join('')||'<p class="note">لا توجد إشعارات.</p>'}<button class="btn" id="bk">رجوع</button></div>`);$('#bk').onclick=()=>localStorage.getItem('role')==='STORE'?retry(storeHome):home()}
+async function profile(){const m=await api('GET','/me');show(`<div class="card"><h2>حسابي</h2><label>الاسم<input id="n" value="${esc(m.name)}"></label><label>رقم الهاتف<input value="${esc(m.phone)}" disabled></label><label>كلمة المرور الحالية<input id="op" type="password"></label><label>كلمة مرور جديدة (اختياري)<input id="np" type="password"></label><div class="err"></div><div class="row"><button class="btn" id="bk">رجوع</button><button class="btn p" id="sv">حفظ</button></div></div>`);
+ $('#bk').onclick=home;$('#sv').onclick=()=>go(async()=>{const b={name:$('#n').value.trim()};if($('#np').value){b.old_password=$('#op').value;b.new_password=$('#np').value}await api('PATCH','/me',b);$('.err').style.color='var(--g)';$('.err').textContent='تم الحفظ'})}
+const oo=localStorage.getItem('open_order');if(tok&&oo){localStorage.removeItem('open_order');detail(oo).catch(home)}else tok?(localStorage.getItem('role')==='STORE'?retry(storeHome):home()):auth();
+</script></body></html>
